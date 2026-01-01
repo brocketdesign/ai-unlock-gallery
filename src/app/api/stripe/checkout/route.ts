@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
@@ -21,6 +21,9 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const user = await currentUser();
+    const userEmail = user?.emailAddresses?.[0]?.emailAddress;
 
     if (!stripe) {
       return NextResponse.json({ error: 'Payment system not configured' }, { status: 503 });
@@ -54,6 +57,7 @@ export async function POST(req: Request) {
       mode: 'payment',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/`,
+      customer_email: userEmail,
       metadata: {
         userId,
         gems: gemPackage.gems.toString(),

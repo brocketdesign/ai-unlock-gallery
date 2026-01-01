@@ -44,22 +44,30 @@ export async function POST(req: Request) {
       if (userId && gems > 0) {
         await connectDB();
 
-        // Update user gems
-        const user = await User.findOne({ clerkId: userId });
-        
-        if (user) {
-          user.gems += gems;
-          await user.save();
+        // Update user gems - use findOneAndUpdate with upsert to handle race conditions
+        const user = await User.findOneAndUpdate(
+          { clerkId: userId },
+          { 
+            $inc: { gems: gems },
+            $setOnInsert: { 
+              clerkId: userId,
+              email: session.customer_email || '',
+              createdAt: new Date()
+            }
+          },
+          { upsert: true, new: true }
+        );
 
-          // Create transaction record
-          await Transaction.create({
-            userId: user.clerkId,
-            type: 'purchase',
-            amount: gems,
-            description: `Purchased ${gems} gems`,
-            stripeSessionId: session.id,
-          });
-        }
+        // Create transaction record
+        await Transaction.create({
+          userId: user.clerkId,
+          type: 'purchase',
+          amount: gems,
+          description: `Purchased ${gems} gems`,
+          stripeSessionId: session.id,
+        });
+
+        console.log(`Added ${gems} gems to user ${userId}. New balance: ${user.gems}`);
       }
     }
 
